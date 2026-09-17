@@ -26,9 +26,11 @@ func main() {
 	}
 	log.Println("База данных инициализирована")
 
-	http.HandleFunc("/api/nextdate", api.NextDateHandler)
-	http.HandleFunc("/api/task/done", api.DoneTaskHandler)
-	http.HandleFunc("/api/task", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/signin", api.SignInHandler)
+	http.HandleFunc("/api/nextdate", api.Auth(api.NextDateHandler))
+	//http.HandleFunc("/api/tasks", Auth(tasksHandler))
+	http.HandleFunc("/api/task/done", api.Auth(api.DoneTaskHandler))
+	http.HandleFunc("/api/task", api.Auth(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
 			api.GetTaskHandler(w, r)
@@ -41,8 +43,8 @@ func main() {
 		default:
 			http.Error(w, `{"error":"Метод не поддерживается"}`, http.StatusMethodNotAllowed)
 		}
-	})
-	http.HandleFunc("/api/tasks", api.TasksHandler)
+	}))
+	http.HandleFunc("/api/tasks", api.Auth(api.TasksHandler))
 
 	http.Handle("/", http.FileServer(http.Dir("./web")))
 
