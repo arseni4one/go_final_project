@@ -17,8 +17,6 @@ func AddTaskHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Получена задача: Date=%s, Title=%s, Repeat=%s", task.Date, task.Title, task.Repeat)
-
 	if task.Title == "" {
 		http.Error(w, `{"error":"Не указан заголовок"}`, http.StatusBadRequest)
 		return
@@ -27,17 +25,17 @@ func AddTaskHandler(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	nowDate := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	if task.Date == "" {
-		task.Date = now.Format("20060102")
+		task.Date = now.Format(DateFormat)
 	}
 
-	date, err := time.Parse("20060102", task.Date)
+	date, err := time.Parse(DateFormat, task.Date)
 	if err != nil {
 		http.Error(w, `{"error":"Неверный формат даты"}`, http.StatusBadRequest)
 		return
 	}
 
 	if date.Before(nowDate) && task.Repeat != "" {
-		log.Printf("Вызов NextDate: now=%s, date=%s, repeat=%s", nowDate.Format("20060102"), task.Date, task.Repeat)
+		log.Printf("Вызов NextDate: now=%s, date=%s, repeat=%s", nowDate.Format(DateFormat), task.Date, task.Repeat)
 		nextDate, err := NextDate(nowDate, task.Date, task.Repeat)
 		if err != nil {
 			http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusBadRequest)
@@ -45,7 +43,7 @@ func AddTaskHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		task.Date = nextDate
 	} else if date.Before(nowDate) && task.Repeat == "" {
-		task.Date = nowDate.Format("20060102")
+		task.Date = nowDate.Format(DateFormat)
 	}
 
 	log.Printf("После обработки: Date=%s", task.Date)

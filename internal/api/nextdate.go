@@ -7,13 +7,15 @@ import (
 	"time"
 )
 
+const DateFormat = "20060102"
+
 // NextDate вычисляет следующую дату выполнения задачи
 func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 	if repeat == "" {
 		return "", fmt.Errorf("правило повторения не указано")
 	}
 
-	date, err := time.Parse("20060102", dstart)
+	date, err := time.Parse(DateFormat, dstart)
 	if err != nil {
 		return "", fmt.Errorf("неверный формат даты: %s", err)
 	}
@@ -31,7 +33,7 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 		for {
 			date = date.AddDate(0, 0, days)
 			if date.After(now) {
-				return date.Format("20060102"), nil
+				return date.Format(DateFormat), nil
 			}
 		}
 
@@ -39,7 +41,7 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 		for {
 			date = date.AddDate(1, 0, 0)
 			if date.After(now) {
-				return date.Format("20060102"), nil
+				return date.Format(DateFormat), nil
 			}
 		}
 

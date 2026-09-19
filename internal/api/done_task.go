@@ -9,20 +9,20 @@ import (
 
 func DoneTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, `{"error":"Метод не поддерживается"}`, http.StatusMethodNotAllowed)
+		writeError(w, http.StatusMethodNotAllowed, "Метод не поддерживается")
 		return
 	}
 
 	idStr := r.FormValue("id")
 	if idStr == "" {
-		http.Error(w, `{"error":"Не указан идентификатор"}`, http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "Не указан идентификатор")
 		return
 	}
 
 	// Получаем задачу
 	task, err := database.GetTask(idStr)
 	if err != nil {
-		http.Error(w, `{"error":"Задача не найдена"}`, http.StatusNotFound)
+		writeError(w, http.StatusNotFound, "Задача не найдена")
 		return
 	}
 
@@ -30,7 +30,7 @@ func DoneTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if task.Repeat == "" {
 		err = database.DeleteTask(idStr)
 		if err != nil {
-			http.Error(w, `{"error":"Ошибка удаления задачи"}`, http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "Ошибка удаления задачи")
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -44,14 +44,14 @@ func DoneTaskHandler(w http.ResponseWriter, r *http.Request) {
 
 	nextDate, err := NextDate(nowDate, task.Date, task.Repeat)
 	if err != nil {
-		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, `{"error":"`+err.Error()+`"}`)
 		return
 	}
 
 	// Обновляем дату задачи
 	err = database.UpdateTaskDate(idStr, nextDate)
 	if err != nil {
-		http.Error(w, `{"error":"Ошибка обновления даты задачи"}`, http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "Ошибка обновления даты задачи")
 		return
 	}
 

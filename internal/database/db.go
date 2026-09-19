@@ -15,6 +15,11 @@ func Init(dbFile string) error {
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if err != nil {
+			_ = DB.Close()
+		}
+	}()
 
 	// Создаём таблицу (IF NOT EXISTS)
 	createTableSQL := `
@@ -33,4 +38,12 @@ func Init(dbFile string) error {
 	}
 
 	return nil
+}
+func Close() error {
+	if DB == nil {
+		return nil
+	}
+	err := DB.Close()
+	DB = nil
+	return err
 }

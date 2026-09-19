@@ -2,7 +2,10 @@ package database
 
 import (
 	"database/sql"
+	"errors"
 	"strconv"
+
+	_ "modernc.org/sqlite"
 )
 
 type Task struct {
@@ -12,6 +15,8 @@ type Task struct {
 	Comment string `json:"comment"`
 	Repeat  string `json:"repeat"`
 }
+
+var ErrTaskNotFound = errors.New("task not found")
 
 // AddTask добавляет задачу и возвращает ID как строку
 func AddTask(task Task) (string, error) {
@@ -70,8 +75,18 @@ func DeleteTask(idStr string) error {
 		return err
 	}
 	query := `DELETE FROM scheduler WHERE id = ?`
-	_, err = DB.Exec(query, id)
-	return err
+	res, err := DB.Exec(query, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrTaskNotFound
+	}
+	return nil
 }
 
 // UpdateTaskDate обновляет только дату (ID приходит как строка)

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -20,6 +21,10 @@ type signInResponse struct {
 	Error string `json:"error,omitempty"`
 }
 
+func signingKey(password string) []byte {
+	return []byte(os.Getenv("TODO_JWT_SECRET") + password)
+}
+
 // хэш пароля, чтобы не хранить и не передавать пароль напрямую в токене
 func passwordHash(password string) string {
 	sum := sha256.Sum256([]byte(password))
@@ -29,14 +34,14 @@ func passwordHash(password string) string {
 func SignInHandler(w http.ResponseWriter, r *http.Request) {
 	var req signInRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJson(w, http.StatusBadRequest, signInResponse{Error: "ошибка десериализации JSON"})
+		writeError(w, http.StatusBadRequest, "ошибка десериализации JSON")
 		return
 	}
 
 	storedPassword := os.Getenv("TODO_PASSWORD")
 
 	if req.Password != storedPassword {
-		writeJson(w, http.StatusOK, signInResponse{Error: "Неверный пароль"})
+		writeError(w, http.StatusUnauthorized, "Неверный пароль")
 		return
 	}
 
@@ -48,7 +53,7 @@ func SignInHandler(w http.ResponseWriter, r *http.Request) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signedToken, err := token.SignedString([]byte("secret-key")) // лучше вынести в константу/конфиг
 	if err != nil {
-		writeJson(w, http.StatusInternalServerError, signInResponse{Error: "ошибка формирования токена"})
+		writeError(w, http.StatusInternalServerError, "ошибка формирования токена")
 		return
 	}
 
@@ -56,9 +61,8 @@ func SignInHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // middleware для защищённых маршрутов
-func Auth(next http.HandlerFunc) http.HandlerFunc {
+func Auth(storedPassword string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		storedPassword := os.Getenv("TODO_PASSWORD")
 		if len(storedPassword) == 0 {
 			next(w, r)
 			return
@@ -66,27 +70,33 @@ func Auth(next http.HandlerFunc) http.HandlerFunc {
 
 		cookie, err := r.Cookie("token")
 		if err != nil {
-			http.Error(w, "Authentification required", http.StatusUnauthorized)
+			writeError(w, http.StatusUnauthorized, "Authentication required")
 			return
 		}
 
-		token, err := jwt.Parse(cookie.Value, func(t *jwt.Token) (interface{}, error) {
-			return []byte("secret-key"), nil
-		})
+		token, err := jwt.ParseWithClaims(
+			cookie.Value,
+			&jwt.RegisteredClaims{},
+			func(t *jwt.Token) (interface{}, error) {
+				return []byte("secret-key"), nil
+			},
+			jwt.WithValidMethods([]string{"HS256"}),
+			jwt.WithExpirationRequired(),
+		)
 		if err != nil || !token.Valid {
-			http.Error(w, "Authentification required", http.StatusUnauthorized)
+			writeError(w, http.StatusUnauthorized, "Authentication required")
 			return
 		}
 
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
-			http.Error(w, "Authentification required", http.StatusUnauthorized)
+			writeError(w, http.StatusUnauthorized, "Authentication required")
 			return
 		}
 
 		hashFromToken, ok := claims["hash"].(string)
 		if !ok || hashFromToken != passwordHash(storedPassword) {
-			http.Error(w, "Authentification required", http.StatusUnauthorized)
+			writeError(w, http.StatusUnauthorized, "Authentication required")
 			return
 		}
 
@@ -95,9 +105,20 @@ func Auth(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func writeJson(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
+	body, err := json.Marshal(data)
+	if err != nil {
+		log.Printf("writeJson: ошибка сериализации: %v", err)
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":"внутренняя ошибка сервера"}`))
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
+	if _, err := w.Write(body); err != nil {
+		log.Printf("writeJson: ошибка записи ответа: %v", err)
+	}
 }
 
 func writeError(w http.ResponseWriter, status int, message string) {

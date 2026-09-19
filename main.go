@@ -25,12 +25,16 @@ func main() {
 		log.Fatal(err)
 	}
 	log.Println("База данных инициализирована")
+	defer func() {
+		if err := database.Close(); err != nil {
+			log.Printf("ошибка закрытия БД: %v", err)
+		}
+	}()
 
 	http.HandleFunc("/api/signin", api.SignInHandler)
-	http.HandleFunc("/api/nextdate", api.Auth(api.NextDateHandler))
-	//http.HandleFunc("/api/tasks", Auth(tasksHandler))
-	http.HandleFunc("/api/task/done", api.Auth(api.DoneTaskHandler))
-	http.HandleFunc("/api/task", api.Auth(func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/nextdate", api.NextDateHandler)
+	http.HandleFunc("/api/task/done", api.Auth(os.Getenv("TODO_PASSWORD"), api.DoneTaskHandler))
+	http.HandleFunc("/api/task", api.Auth(os.Getenv("TODO_PASSWORD"), func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
 			api.GetTaskHandler(w, r)
@@ -44,7 +48,7 @@ func main() {
 			http.Error(w, `{"error":"Метод не поддерживается"}`, http.StatusMethodNotAllowed)
 		}
 	}))
-	http.HandleFunc("/api/tasks", api.Auth(api.TasksHandler))
+	http.HandleFunc("/api/tasks", api.Auth(os.Getenv("TODO_PASSWORD"), api.TasksHandler))
 
 	http.Handle("/", http.FileServer(http.Dir("./web")))
 
